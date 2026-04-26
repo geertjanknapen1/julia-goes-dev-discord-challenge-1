@@ -45,6 +45,10 @@
                     <div class="stat-value" id="highScore">-</div>
                     <div class="stat-label">Persönlicher Rekord</div>
                 </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="amountOfGames">-</div>
+                    <div class="stat-label">Gespielte Spiele</div>
+                </div>
             </div>
 
             <button class="btn btn-danger btn-reset" onclick="resetGame()">Neues Spiel</button>
@@ -66,7 +70,7 @@
 
             initializeGame();
             loadHighScore();
-            
+            loadAmountOfGames();
             // Allow to see number in first screen (testing purposes).
             const spoiler = document.getElementById('secretNumber');
             spoiler.addEventListener('mouseenter', function() {
@@ -87,7 +91,15 @@
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
-                const data = await response.json();
+                const responseText = await response.text();
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (parseError) {
+                    console.error('Invalid JSON response:', responseText);
+                    throw new Error('Server returned invalid JSON: ' + responseText.substring(0, 100));
+                }
+
                 if (data.error) {
                     throw new Error(data.error);
                 }
@@ -144,7 +156,15 @@
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
 
-                const data = await response.json();
+                const responseText = await response.text();
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (parseError) {
+                    console.error('Invalid JSON response:', responseText);
+                    throw new Error('Server returned invalid JSON: ' + responseText.substring(0, 100));
+                }
+
                 if (data.error) {
                     throw new Error(data.error);
                 }
@@ -155,9 +175,9 @@
 
                 if (data.result === 'correct') {
                     showFeedback(`🎉 Richtig! Die Zahl war indeed ${guess}! Du hast ${guesses.length} Versuche gebraucht.`, 'success');
-                    updateHighScore(guesses.length);
                     document.getElementById('guessInput').disabled = true;
                     document.querySelector('.btn-guess').disabled = true;
+                    loadHighScore(); // Update highscore display
                 } else if (data.result === 'too_low') {
                     showFeedback('📈 Zu niedrig! Versuche eine höhere Zahl.', 'info');
                 } else if (data.result === 'too_high') {
@@ -190,20 +210,53 @@
             ).join('');
         }
 
-        function loadHighScore() {
-            const saved = localStorage.getItem('numberGuessingHighScore');
-            if (saved) {
-                document.getElementById('highScore').textContent = saved;
+        async function loadHighScore() {
+            try {
+                const response = await fetch('api.php?action=stats');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const responseText = await response.text();
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (parseError) {
+                    console.error('Invalid JSON response:', responseText);
+                    throw new Error('Server returned invalid JSON: ' + responseText.substring(0, 100));
+                }
+
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                document.getElementById('highScore').textContent = data.highscore ?? '-';
+            } catch (error) {
+                console.error('Error loading stats:', error);
+                document.getElementById('highScore').textContent = '???';
             }
         }
 
-        function updateHighScore(attempts) {
-            const current = localStorage.getItem('numberGuessingHighScore');
-            const currentScore = current ? parseInt(current, 10) : Infinity;
+        async function loadAmountOfGames() {
+            try {
+                const response = await fetch('api.php?action=stats');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const responseText = await response.text();
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (parseError) {
+                    console.error('Invalid JSON response:', responseText);
+                    throw new Error('Server returned invalid JSON: ' + responseText.substring(0, 100));
+                }
 
-            if (attempts < currentScore) {
-                localStorage.setItem('numberGuessingHighScore', attempts);
-                document.getElementById('highScore').textContent = attempts;
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                document.getElementById('amountOfGames').textContent = data.played_games;
+            } catch (error) {
+                console.error('Error loading stats:', error);
+                document.getElementById('amountOfGames').textContent = '???';
             }
         }
 
@@ -215,6 +268,8 @@
             document.getElementById('guessInput').disabled = false;
             document.querySelector('.btn-guess').disabled = false;
             initializeGame();
+            loadAmountOfGames();
+            loadHighScore();
         }
     </script>
 </body>

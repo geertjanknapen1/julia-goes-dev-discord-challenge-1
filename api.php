@@ -1,14 +1,15 @@
 <?php
 
-// Buffer output to prevent headers already sent errors, set content type and clean buffer.
-ob_start();
+// Prevent all output except JSON
+error_reporting(E_ALL);
+ini_set('display_errors', '0');
 header('Content-Type: application/json; charset=utf-8');
-ob_end_clean();
 
 require_once 'GameEngine.php';
 
 // File-based storage for active games (simple temp file approach)
 $gamesFile = sys_get_temp_dir() . '/number_guessing_games.json';
+$statsFile = sys_get_temp_dir() . '/number_guessing_stats.json';
 
 /**
  * Load all active games from file
@@ -39,6 +40,34 @@ function saveGames(array $games): void
 }
 
 /**
+ * Load stats from file
+ */
+function loadStats(): array
+{
+    global $statsFile;
+    if (!file_exists($statsFile)) {
+        return ['played_games' => 0, 'highscore' => null];
+    }
+    
+    $content = file_get_contents($statsFile);
+    if (!$content) {
+        return ['played_games' => 0, 'highscore' => null];
+    }
+    
+    $stats = json_decode($content, true);
+    return is_array($stats) ? $stats : ['played_games' => 0, 'highscore' => null];
+}
+
+/**
+ * Save stats to file
+ */
+function saveStats(array $stats): void
+{
+    global $statsFile;
+    file_put_contents($statsFile, json_encode($stats, JSON_PRETTY_PRINT));
+}
+
+/**
  * Initialize a new game
  */
 function initGame(): array
@@ -50,6 +79,11 @@ function initGame(): array
     $games = loadGames();
     $games[$gameId] = serialize($engine);
     saveGames($games);
+    
+    // Increment played games
+    $stats = loadStats();
+    $stats['played_games']++;
+    saveStats($stats);
     
     return $engine->getGameState();
 }
@@ -74,6 +108,16 @@ function processGuess(string $gameId, int $guess): array
     $games[$gameId] = serialize($engine);
     saveGames($games);
     
+    // Update highscore if correct
+    if ($result['result'] === 'correct') {
+        $stats = loadStats();
+        $attempts = $result['attempts'];
+        if ($stats['highscore'] === null || $attempts < $stats['highscore']) {
+            $stats['highscore'] = $attempts;
+            saveStats($stats);
+        }
+    }
+    
     return $result;
 }
 
@@ -96,6 +140,14 @@ function getGameState(string $gameId): array
 }
 
 /**
+ * Get global stats
+ */
+function getStats(): array
+{
+    return loadStats();
+}
+
+/**
  * Main handler - routes requests based on action and returns JSON responses
  */
 try {
@@ -111,7 +163,6 @@ try {
             if ($result === null) {
                 throw new Exception('Failed to initialize game');
             }
-            echo json_encode($result);
             break;
 
         case 'guess':
@@ -136,7 +187,6 @@ try {
             }
 
             $result = processGuess($data['game_id'], (int)$data['guess']);
-            echo json_encode($result);
             break;
 
         case 'state':
@@ -144,12 +194,18 @@ try {
                 throw new Exception('Missing game_id parameter');
             }
             $result = getGameState($_GET['game_id']);
-            echo json_encode($result);
+            break;
+
+        case 'stats':
+            $result = getStats();
             break;
 
         default:
             throw new Exception('Invalid action: ' . htmlspecialchars($action));
     }
+
+    // Output result as JSON
+    echo json_encode($result);
 } catch (Throwable $e) {
     http_response_code(500);
     echo json_encode([
