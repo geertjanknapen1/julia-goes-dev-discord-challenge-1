@@ -63,6 +63,11 @@
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
+        .feedback.warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
         .stats {
             display: grid;
             grid-template-columns: 1fr 1fr;

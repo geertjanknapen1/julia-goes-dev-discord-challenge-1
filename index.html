@@ -110,6 +110,7 @@
                 document.getElementById('minNumber').textContent = currentGame.min;
                 document.getElementById('maxNumber').textContent = currentGame.max;
                 document.getElementById('guessCount').textContent = '0';
+                showInput();
                 updateGuessesList();
             } catch (error) {
                 console.error('Error initializing game:', error);
@@ -137,6 +138,15 @@
 
             if (guess < currentGame.min || guess > currentGame.max) {
                 showFeedback(`Die Zahl muss zwischen ${currentGame.min} und ${currentGame.max} liegen`, 'error');
+                return;
+            }
+
+            // Check if guess was already made
+            const alreadyGuessed = guesses.some(g => g.guess === guess);
+            if (alreadyGuessed) {
+                showFeedback(`Die Zahl ${guess} hast du bereits geraten! Versuche eine andere Zahl.`, 'warning');
+                guessInput.value = '';
+                guessInput.focus();
                 return;
             }
 
@@ -177,6 +187,7 @@
                     showFeedback(`🎉 Richtig! Die Zahl war indeed ${guess}! Du hast ${guesses.length} Versuche gebraucht.`, 'success');
                     document.getElementById('guessInput').disabled = true;
                     document.querySelector('.btn-guess').disabled = true;
+                    hideInput(); // Hide input since game is finished
                     loadHighScore(); // Update highscore display
                 } else if (data.result === 'too_low') {
                     showFeedback('📈 Zu niedrig! Versuche eine höhere Zahl.', 'info');
@@ -258,6 +269,14 @@
                 console.error('Error loading stats:', error);
                 document.getElementById('amountOfGames').textContent = '???';
             }
+        }
+
+        function hideInput() {
+            document.querySelector('.input-group').style.display = 'none';
+        }
+
+        function showInput() {
+            document.querySelector('.input-group').style.display = '';
         }
 
         function resetGame() {
