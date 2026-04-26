@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Julia Goes Dev - Zahlen erraten</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+    <div class="game-container">
+        <h1 class="game-title">Zahlen erraten</h1>
+        <div id="phase1" class="phase-content">
+            <div class="game-info">
+                <p class="mb-0">Die gesuchte Zahl ist:
+                    <span class="spoiler" id="secretNumber" title="Bewegen Sie den Mauszeiger darüber, um die Zahl anzuzeigen.">???</span>
+                </p>
+            </div>
+
+            <div class="hint-indicator" id="hintDisplay">Tipp: Bewege den Mauszeiger über den violetten Bereich, um die Zahl anzuzeigen.</div>
+
+            <button class="btn btn-primary btn-guess w-100" onclick="startGuessing()">Rate die Zahl!</button>
+        </div>
+
+        <div id="phase2" class="phase-content" style="display: none;">
+            <div class="game-info">
+                <p class="mb-0">Schätze die Zahl zwischen <strong id="minNumber">1</strong> und <strong id="maxNumber">100</strong>.</p>
+            </div>
+            
+            <div class="input-group">
+                <input type="number" id="guessInput" class="form-control guess-input" placeholder="Gib deinen Tipp ein…" min="1" max="100">
+                <button class="btn btn-primary btn-guess" onclick="submitGuess()">Schätzen</button>
+            </div>
+
+            <div id="feedback" class="feedback"></div>
+
+            <div class="guesses-list" id="guessesList"></div>
+
+            <div class="stats">
+                <div class="stat-box">
+                    <div class="stat-value" id="guessCount">0</div>
+                    <div class="stat-label">Versuche</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="highScore">-</div>
+                    <div class="stat-label">Persönlicher Rekord</div>
+                </div>
+            </div>
+
+            <button class="btn btn-danger btn-reset" onclick="resetGame()">Neues Spiel</button>
+        </div>
+    </div>
+
+    <script>
+        let currentGame = null;
+        let guesses = [];
+
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.location.protocol === 'file:') {
+                showFeedback('PHP-Server erforderlich. Öffnen Sie diese Datei über einen lokalen Webserver, beispielsweise mit php -S localhost:8081.', 'error');
+                document.getElementById('guessInput').disabled = true;
+                document.querySelector('.btn-guess').disabled = true;
+                document.querySelector('.btn-reset').disabled = true;
+                return;
+            }
+
+            initializeGame();
+            loadHighScore();
+            
+            // Allow to see number in first screen (testing purposes).
+            const spoiler = document.getElementById('secretNumber');
+            spoiler.addEventListener('mouseenter', function() {
+                this.textContent = this.dataset.secret;
+            });
+            spoiler.addEventListener('mouseleave', function() {
+                this.textContent = '???';
+            });
+            
+            document.getElementById('guessInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') submitGuess();
+            });
+        });
+
+        async function initializeGame() {
+            try {
+                const response = await fetch('api.php?action=init');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                currentGame = data;
+                guesses = [];
+                document.getElementById('secretNumber').dataset.secret = currentGame.secret_number;
+                document.getElementById('minNumber').textContent = currentGame.min;
+                document.getElementById('maxNumber').textContent = currentGame.max;
+                document.getElementById('guessCount').textContent = '0';
+                updateGuessesList();
+            } catch (error) {
+                console.error('Error initializing game:', error);
+                showFeedback('Server kon nicht werden bereicht: ' + error.message, 'error');
+                document.getElementById('guessInput').disabled = true;
+                document.querySelector('.btn-guess').disabled = true;
+                document.querySelector('.btn-reset').disabled = false;
+            }
+        }
+
+        function startGuessing() {
+            document.getElementById('phase1').style.display = 'none';
+            document.getElementById('phase2').style.display = 'block';
+            document.getElementById('guessInput').focus();
+        }
+
+        async function submitGuess() {
+            const guessInput = document.getElementById('guessInput');
+            const guess = parseInt(guessInput.value, 10);
+
+            if (isNaN(guess)) {
+                showFeedback('Bitte geben Sie eine gültige Nummer ein.', 'error');
+                return;
+            }
+
+            if (guess < currentGame.min || guess > currentGame.max) {
+                showFeedback(`Die Zahl muss zwischen ${currentGame.min} und ${currentGame.max} liegen`, 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('api.php?action=guess', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        game_id: currentGame.id,
+                        guess: guess
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                guesses.push({ guess: guess, result: data.result });
+                document.getElementById('guessCount').textContent = guesses.length;
+                updateGuessesList();
+
+                if (data.result === 'correct') {
+                    showFeedback(`🎉 Richtig! Die Zahl war indeed ${guess}! Du hast ${guesses.length} Versuche gebraucht.`, 'success');
+                    updateHighScore(guesses.length);
+                    document.getElementById('guessInput').disabled = true;
+                    document.querySelector('.btn-guess').disabled = true;
+                } else if (data.result === 'too_low') {
+                    showFeedback('📈 Zu niedrig! Versuche eine höhere Zahl.', 'info');
+                } else if (data.result === 'too_high') {
+                    showFeedback('📉 Zu hoch! Versuche eine niedrigere Zahl.', 'info');
+                }
+            } catch (error) {
+                console.error('Error submitting guess:', error);
+                showFeedback('Es ist ein Fehler aufgetreten: ' + error.message, 'error');
+            }
+
+            guessInput.value = '';
+            guessInput.focus();
+        }
+
+        function showFeedback(message, type) {
+            const feedback = document.getElementById('feedback');
+            feedback.textContent = message;
+            feedback.className = `feedback show ${type}`;
+        }
+
+        function updateGuessesList() {
+            const list = document.getElementById('guessesList');
+            if (guesses.length === 0) {
+                list.innerHTML = '<p class="text-muted mb-0">Noch keine Tipps…</p>';
+                return;
+            }
+
+            list.innerHTML = guesses.map((g, i) =>
+                `<div class="guess-item">Gok ${i + 1}: ${g.guess} - <strong>${g.result === 'correct' ? '✓ Treffer!' : g.result === 'too_low' ? '↑ Zu niedrig' : '↓ Zu hoch'}</strong></div>`
+            ).join('');
+        }
+
+        function loadHighScore() {
+            const saved = localStorage.getItem('numberGuessingHighScore');
+            if (saved) {
+                document.getElementById('highScore').textContent = saved;
+            }
+        }
+
+        function updateHighScore(attempts) {
+            const current = localStorage.getItem('numberGuessingHighScore');
+            const currentScore = current ? parseInt(current, 10) : Infinity;
+
+            if (attempts < currentScore) {
+                localStorage.setItem('numberGuessingHighScore', attempts);
+                document.getElementById('highScore').textContent = attempts;
+            }
+        }
+
+        function resetGame() {
+            document.getElementById('phase1').style.display = 'block';
+            document.getElementById('phase2').style.display = 'none';
+            document.getElementById('hintDisplay').textContent = 'Tipp: Bewege den Mauszeiger über den violetten Bereich, um die Zahl anzuzeigen.';
+            document.getElementById('feedback').className = 'feedback';
+            document.getElementById('guessInput').disabled = false;
+            document.querySelector('.btn-guess').disabled = false;
+            initializeGame();
+        }
+    </script>
+</body>
+</html>
