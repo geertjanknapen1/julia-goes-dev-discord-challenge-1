@@ -21,7 +21,9 @@ Falls PHP noch nicht installiert ist, verwenden Sie diese Anleitung: https://www
 cd /Pfad/zu/ChallengeOne
 ```
 
-(Nicht notwendig, wenn Sie das Terminal in VS Code verwenden, da es direkt im Projektordner geöffnet wird). 2. Starten Sie den PHP-Server:
+(Nicht notwendig, wenn Sie das Terminal in VS Code verwenden, da es direkt im Projektordner geöffnet wird).
+
+2. Starten Sie den PHP-Server:
 
 ```bash
 php -S localhost:8000
