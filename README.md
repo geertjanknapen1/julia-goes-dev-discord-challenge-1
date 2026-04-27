@@ -39,3 +39,12 @@ http://localhost:8000
 ```
 
 (oder einen der anderen von Ihnen gewählten Ports)
+
+
+## Screenshots
+<img width="627" height="399" alt="image" src="https://github.com/user-attachments/assets/f18b7ae9-05ee-4d67-8867-251bae53340e" />
+
+<img width="627" height="714" alt="image" src="https://github.com/user-attachments/assets/e77eea9e-8d9a-440c-acdd-3580b8d330cd" />
+
+<img width="627" height="714" alt="image" src="https://github.com/user-attachments/assets/ba22cfc4-b736-447a-9533-73cc49c01fc9" />
+
